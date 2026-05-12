@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   Box,
   Typography,
@@ -8,13 +8,82 @@ import {
   Grid,
   TextField,
   Button,
-  Switch,
   Alert,
+  CircularProgress,
+  Chip,
+  IconButton,
 } from "@mui/material";
-import { Key, Security, Save, CheckCircleOutline } from "@mui/icons-material";
+import { Key, CheckCircleOutline, DeleteOutline } from "@mui/icons-material";
+
+import { ApiHttpError } from "../../api/client";
+import {
+  createCredential,
+  deleteCredential,
+  listCredentials,
+} from "../../api/credentials";
+import type { CredentialOut } from "../../api/types";
 
 export function Settings() {
-  const [binanceTested, setBinanceTested] = useState(false);
+  const [creds, setCreds] = useState<CredentialOut[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [label, setLabel] = useState("Binance Testnet");
+  const [apiKey, setApiKey] = useState("");
+  const [apiSecret, setApiSecret] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  const refresh = async () => {
+    setLoadError(null);
+    try {
+      const data = await listCredentials();
+      setCreds(data);
+    } catch (err) {
+      setLoadError(err instanceof ApiHttpError ? err.message : "Не удалось загрузить ключи");
+      setCreds([]);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(false);
+    setSubmitting(true);
+    try {
+      await createCredential({
+        exchange: "binance",
+        label: label.trim() || "Binance Testnet",
+        api_key: apiKey.trim(),
+        api_secret: apiSecret.trim(),
+        testnet: true,
+      });
+      setApiKey("");
+      setApiSecret("");
+      setSubmitSuccess(true);
+      await refresh();
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiHttpError ? err.message : "Не удалось сохранить ключи",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const onDelete = async (id: string) => {
+    if (!confirm("Удалить эти ключи? Боты, использующие их, перестанут работать.")) return;
+    try {
+      await deleteCredential(id);
+      await refresh();
+    } catch (err) {
+      setLoadError(err instanceof ApiHttpError ? err.message : "Не удалось удалить");
+    }
+  };
 
   return (
     <Box sx={{ maxWidth: 900, mx: "auto", pb: 6 }}>
@@ -23,176 +92,156 @@ export function Settings() {
           Настройки
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Управление API ключами и глобальными параметрами риска.
+          Управление API ключами тестовых сетей. Бэк валидирует ключ через биржу в
+          sandbox-режиме, а затем шифрует и сохраняет в БД (Fernet).
         </Typography>
       </Box>
 
-      <Stack spacing={2}>
-        {/* Секция API */}
+      <Stack spacing={3}>
+        {/* Существующие ключи */}
         <Card>
           <Box p={3} borderBottom={1} borderColor="divider">
-            <Stack direction="row" alignItems="center" spacing={1.5} mb={1}>
+            <Stack direction="row" alignItems="center" spacing={1.5}>
               <Key color="primary" />
-              <Typography variant="h2">API ключи тестовых сетей</Typography>
+              <Typography variant="h2">Подключённые ключи</Typography>
             </Stack>
-            <Typography variant="body2" color="text.secondary">
-              Для работы требуются ключи только от Testnet окружений.
-            </Typography>
           </Box>
           <CardContent sx={{ p: 3 }}>
-            <Box mb={4}>
-              <Stack
-                direction="row"
-                alignItems="center"
-                justifyContent="space-between"
-                mb={2}
-              >
-                <Stack direction="row" alignItems="center" spacing={1}>
+            {loadError && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {loadError}
+              </Alert>
+            )}
+            {creds === null ? (
+              <Box display="flex" justifyContent="center" py={4}>
+                <CircularProgress size={28} />
+              </Box>
+            ) : creds.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                Ещё ничего не добавлено. Заполните форму ниже.
+              </Typography>
+            ) : (
+              <Stack spacing={1.5}>
+                {creds.map((c) => (
                   <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: "#eab308",
-                    }}
-                  />
-                  <Typography variant="subtitle1" fontWeight="bold">
-                    Binance Testnet
-                  </Typography>
-                </Stack>
-                {binanceTested && (
-                  <Alert
-                    icon={<CheckCircleOutline fontSize="inherit" />}
-                    severity="success"
-                    sx={{ py: 0, px: 2, "& .MuiAlert-message": { py: 0.5 } }}
+                    key={c.id}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="space-between"
+                    p={2}
+                    border={1}
+                    borderColor="divider"
+                    borderRadius={2}
                   >
-                    Соединение успешно
-                  </Alert>
-                )}
+                    <Stack direction="row" spacing={2} alignItems="center">
+                      <Chip
+                        label={c.exchange}
+                        size="small"
+                        color="primary"
+                        sx={{ textTransform: "uppercase" }}
+                      />
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {c.label}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          добавлен{" "}
+                          {new Date(c.created_at).toLocaleString("ru-RU", {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => onDelete(c.id)}
+                      aria-label="Удалить ключи"
+                    >
+                      <DeleteOutline fontSize="small" />
+                    </IconButton>
+                  </Box>
+                ))}
               </Stack>
-              <Grid container spacing={3} mb={2}>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    label="API Key"
-                    size="small"
-                    defaultValue="************************abc123"
-                    fullWidth
-                    type="password"
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    label="Secret Key"
-                    size="small"
-                    defaultValue="************************xyz890"
-                    fullWidth
-                    type="password"
-                  />
-                </Grid>
-              </Grid>
-              <Button
-                variant="outlined"
-                color="inherit"
-                onClick={() => setBinanceTested(true)}
-              >
-                Проверить соединение
-              </Button>
-            </Box>
+            )}
           </CardContent>
         </Card>
 
-        {/* Секция Рисков */}
+        {/* Форма добавления */}
         <Card>
           <Box p={3} borderBottom={1} borderColor="divider">
-            <Stack direction="row" alignItems="center" spacing={1.5} mb={1}>
-              <Security color="primary" />
-              <Typography variant="h2">
-                Общие параметры и Риск-менеджмент
-              </Typography>
-            </Stack>
+            <Typography variant="h2">Добавить ключ Binance Testnet</Typography>
+            <Typography variant="body2" color="text.secondary" mt={0.5}>
+              Получить ключи: <code>testnet.binance.vision</code> → API Management →
+              Generate.
+            </Typography>
           </Box>
           <CardContent sx={{ p: 3 }}>
-            <Grid container spacing={3} mb={4}>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="body2" color="text.primary" mb={1.5}>
-                  Макс. доля капитала на одну сделку (%)
-                </Typography>
+            <form onSubmit={onSubmit}>
+              <Stack spacing={2.5}>
+                {submitError && <Alert severity="error">{submitError}</Alert>}
+                {submitSuccess && (
+                  <Alert severity="success" icon={<CheckCircleOutline />}>
+                    Ключ проверен и сохранён.
+                  </Alert>
+                )}
                 <TextField
-                  type="number"
+                  label="Название (для удобства)"
                   size="small"
-                  defaultValue="10"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
                   fullWidth
+                  disabled={submitting}
                 />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  display="block"
-                  mt={1}
-                >
-                  Ни одна стратегия не сможет использовать более указанного
-                  процента.
-                </Typography>
-              </Grid>
-              <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="body2" color="text.primary" mb={1.5}>
-                  Глобальный Stop-Loss (%)
-                </Typography>
-                <TextField
-                  type="number"
-                  size="small"
-                  defaultValue="5"
-                  fullWidth
-                />
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  display="block"
-                  mt={1}
-                >
-                  Принудительное закрытие всех позиций стратегии.
-                </Typography>
-              </Grid>
-            </Grid>
-
-            <Box
-              p={2}
-              bgcolor="background.default"
-              border={1}
-              borderColor="divider"
-              borderRadius={2}
-              display="flex"
-              justifyContent="space-between"
-              alignItems="center"
-            >
-              <Box pr={2}>
-                <Typography variant="body2" fontWeight="bold">
-                  Остановка движка при критической ошибке
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  Автоматически приостанавливать все торги при ошибках API
-                  биржи.
-                </Typography>
-              </Box>
-              <Switch defaultChecked />
-            </Box>
-
-            <Stack
-              direction="row"
-              justifyContent="flex-end"
-              pt={4}
-              mt={4}
-              borderTop={1}
-              borderColor="divider"
-            >
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<Save />}
-                size="large"
-              >
-                Сохранить настройки
-              </Button>
-            </Stack>
+                <Grid container spacing={2}>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField
+                      label="API Key"
+                      size="small"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      fullWidth
+                      required
+                      disabled={submitting}
+                      autoComplete="off"
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 6 }}>
+                    <TextField
+                      label="Secret Key"
+                      size="small"
+                      type="password"
+                      value={apiSecret}
+                      onChange={(e) => setApiSecret(e.target.value)}
+                      fullWidth
+                      required
+                      disabled={submitting}
+                      autoComplete="off"
+                    />
+                  </Grid>
+                </Grid>
+                <Box>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    disabled={submitting || !apiKey || !apiSecret}
+                  >
+                    {submitting ? "Проверяем ключ..." : "Сохранить"}
+                  </Button>
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    display="block"
+                    mt={1.5}
+                  >
+                    Проверка занимает 2–5 секунд: бэк делает fetch_balance к Binance
+                    Testnet, чтобы убедиться что ключ валиден.
+                  </Typography>
+                </Box>
+              </Stack>
+            </form>
           </CardContent>
         </Card>
       </Stack>

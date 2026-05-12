@@ -1,6 +1,8 @@
-import { AppBar, Toolbar, Box, IconButton, Stack, Typography } from "@mui/material";
-import { Menu as MenuIcon, KeyboardArrowDown } from "@mui/icons-material";
+import { AppBar, Toolbar, Box, IconButton, Stack, Typography, Button } from "@mui/material";
+import { Menu as MenuIcon, KeyboardArrowDown, Logout } from "@mui/icons-material";
 import { useTheme } from "@mui/material/styles";
+
+import { useAuth } from "../../../auth/AuthContext";
 
 interface HeaderProps {
   drawerWidth: number;
@@ -10,6 +12,7 @@ interface HeaderProps {
 
 export function Header({ drawerWidth, isResizing, handleDrawerToggle }: HeaderProps) {
   const theme = useTheme();
+  const { user, logout } = useAuth();
 
   return (
     <AppBar
@@ -55,6 +58,26 @@ export function Header({ drawerWidth, isResizing, handleDrawerToggle }: HeaderPr
             </Typography>
             <KeyboardArrowDown fontSize="small" color="action" />
           </Box>
+          {user && (
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ display: { xs: "none", sm: "block" } }}
+              >
+                {user.email}
+              </Typography>
+              <Button
+                size="small"
+                color="inherit"
+                onClick={logout}
+                startIcon={<Logout fontSize="small" />}
+                sx={{ textTransform: "none" }}
+              >
+                Выйти
+              </Button>
+            </Stack>
+          )}
         </Stack>
       </Toolbar>
     </AppBar>
