@@ -18,7 +18,6 @@ export function BasicParameters({ marketType, setMarketType }: BasicParametersPr
               <InputLabel>Биржа</InputLabel>
               <Select defaultValue="binance" label="Биржа">
                 <MenuItem value="binance">Binance Testnet</MenuItem>
-                <MenuItem value="bybit">Bybit Testnet</MenuItem>
               </Select>
             </FormControl>
           </Grid>

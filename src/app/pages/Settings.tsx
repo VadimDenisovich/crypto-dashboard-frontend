@@ -9,7 +9,6 @@ import {
   TextField,
   Button,
   Switch,
-  Divider,
   Alert,
 } from "@mui/material";
 import { Key, Security, Save, CheckCircleOutline } from "@mui/icons-material";
@@ -96,46 +95,6 @@ export function Settings() {
                 color="inherit"
                 onClick={() => setBinanceTested(true)}
               >
-                Проверить соединение
-              </Button>
-            </Box>
-
-            <Divider sx={{ my: 4 }} />
-
-            <Box>
-              <Stack direction="row" alignItems="center" spacing={1} mb={2}>
-                <Box
-                  sx={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    bgcolor: "#f97316",
-                  }}
-                />
-                <Typography variant="subtitle1" fontWeight="bold">
-                  Bybit Testnet
-                </Typography>
-              </Stack>
-              <Grid container spacing={3} mb={2}>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    label="API Key"
-                    size="small"
-                    placeholder="Введите API Key"
-                    fullWidth
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, md: 6 }}>
-                  <TextField
-                    label="Secret Key"
-                    size="small"
-                    placeholder="Введите Secret Key"
-                    fullWidth
-                    type="password"
-                  />
-                </Grid>
-              </Grid>
-              <Button variant="outlined" color="inherit">
                 Проверить соединение
               </Button>
             </Box>

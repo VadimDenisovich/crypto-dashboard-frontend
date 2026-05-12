@@ -43,7 +43,7 @@ const strategies = [
     status: "Остановлена",
     pair: "SOL/USDT",
     timeframe: "-",
-    exchange: "Bybit Testnet",
+    exchange: "Binance Testnet",
     pnl: "+5.2%",
     pnlColor: "success.main",
   },
