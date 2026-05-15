@@ -14,10 +14,16 @@ import type { UserOut } from "../api/types";
 
 interface AuthContextValue {
   user: UserOut | null;
-  isReady: boolean; // initial /auth/me проверка завершена
+  isReady: boolean; // первая проверка /auth/me завершена
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string) => Promise<void>;
+  /** Запросить email-код (бэк отправит письмо через Resend). */
+  requestCode: (email: string, captchaToken: string) => Promise<void>;
+  /** Проверить код, после чего пользователь становится залогинен. */
+  verifyCode: (email: string, code: string) => Promise<void>;
+  /** Залогинить через Telegram Login Widget payload. */
+  loginWithTelegram: (payload: authApi.TelegramAuthPayload) => Promise<void>;
+  /** Принять токены из OAuth callback URL и подгрузить /auth/me. */
+  consumeCallbackTokens: (access: string, refresh: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -27,7 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserOut | null>(null);
   const [isReady, setIsReady] = useState(false);
 
-  // На монтировании: если есть access_token — попробуем /auth/me.
   useEffect(() => {
     const access = getAccessToken();
     if (!access) {
@@ -36,7 +41,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     authApi
       .me()
-      .then((u) => setUser(u))
+      .then(setUser)
       .catch(() => {
         clearTokens();
         setUser(null);
@@ -44,19 +49,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsReady(true));
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    await authApi.login(email, password);
+  const refreshMe = useCallback(async () => {
     const u = await authApi.me();
     setUser(u);
   }, []);
 
-  const register = useCallback(async (email: string, password: string) => {
-    await authApi.register(email, password);
-    // После регистрации сразу логиним — бэк не выдаёт токен на /register.
-    await authApi.login(email, password);
-    const u = await authApi.me();
-    setUser(u);
+  const requestCode = useCallback(async (email: string, captchaToken: string) => {
+    await authApi.requestEmailCode(email, captchaToken);
   }, []);
+
+  const verifyCode = useCallback(
+    async (email: string, code: string) => {
+      await authApi.verifyEmailCode(email, code);
+      await refreshMe();
+    },
+    [refreshMe],
+  );
+
+  const loginWithTelegram = useCallback(
+    async (payload: authApi.TelegramAuthPayload) => {
+      await authApi.loginWithTelegramPayload(payload);
+      await refreshMe();
+    },
+    [refreshMe],
+  );
+
+  const consumeCallbackTokens = useCallback(
+    async (access: string, refresh: string) => {
+      authApi.consumeCallbackTokens(access, refresh);
+      await refreshMe();
+    },
+    [refreshMe],
+  );
 
   const logout = useCallback(() => {
     authApi.logout();
@@ -68,11 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       isReady,
       isAuthenticated: user !== null,
-      login,
-      register,
+      requestCode,
+      verifyCode,
+      loginWithTelegram,
+      consumeCallbackTokens,
       logout,
     }),
-    [user, isReady, login, register, logout],
+    [user, isReady, requestCode, verifyCode, loginWithTelegram, consumeCallbackTokens, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

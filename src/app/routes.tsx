@@ -9,11 +9,11 @@ import { Backtesting } from "./pages/Backtesting";
 import { Logs } from "./pages/Logs";
 import { Settings } from "./pages/Settings";
 import { Login } from "./pages/Login";
-import { Register } from "./pages/Register";
+import { AuthCallback } from "./pages/AuthCallback";
 
 export const router = createBrowserRouter([
   { path: "/login", Component: Login },
-  { path: "/register", Component: Register },
+  { path: "/auth/callback", Component: AuthCallback },
   {
     path: "/",
     element: (
